@@ -7,6 +7,7 @@ import datetime
 import logging
 import uuid
 from functools import reduce
+import time
 
 import pytz
 import six
@@ -132,6 +133,7 @@ def instructor_dashboard_2(request, course_id):
     reports_enabled = configuration_helpers.get_value('SHOW_ECOMMERCE_REPORTS', False)
 
     sections = []
+    start_time = time.time()  # starts time before _section_student_admin (further calls _is_small_course)
     if access['staff']:
         sections.extend([
             _section_course_info(course, access),
@@ -140,6 +142,8 @@ def instructor_dashboard_2(request, course_id):
             _section_discussions_management(course, access),
             _section_student_admin(course, access),
         ])
+    if course_id == 'course-v1:HarvardX+CS50+X':
+        log.info('Investigating log at %s : after _section_student_admin', time.time() - start_time)
     if access['data_researcher']:
         sections.append(_section_data_download(course, access))
 
@@ -195,7 +199,8 @@ def instructor_dashboard_2(request, course_id):
 
     if can_see_special_exams:
         sections.append(_section_special_exams(course, access))
-
+    if course_id == 'course-v1:HarvardX+CS50+X':
+        log.info('Investigating log at %s : section certificate', time.time() - start_time)
     # Certificates panel
     # This is used to generate example certificates
     # and enable self-generated certificates for a course.
@@ -214,7 +219,11 @@ def instructor_dashboard_2(request, course_id):
     if len(openassessment_blocks) > 0 and access['staff']:
         sections.append(_section_open_response_assessment(request, course, openassessment_blocks, access))
 
+    if course_id == 'course-v1:HarvardX+CS50+X':
+        log.info('Investigating log at %s : before Disable Button (calling _is_small_course)', time.time() - start_time)
     disable_buttons = not _is_small_course(course_key)
+    if course_id == 'course-v1:HarvardX+CS50+X':
+        log.info('Investigating log at %s : after Disable Button (calling _is_small_course)', time.time() - start_time)
 
     certificate_white_list = CertificateWhitelist.get_certificate_white_list(course_key)
     generate_certificate_exceptions_url = reverse(
@@ -235,6 +244,8 @@ def instructor_dashboard_2(request, course_id):
         kwargs={'course_id': six.text_type(course_key)}
     )
 
+    if course_id == 'course-v1:HarvardX+CS50+X':
+        log.info('Investigating log at %s : Before Context', time.time() - start_time)
     certificate_invalidations = CertificateInvalidation.get_certificate_invalidations(course_key)
 
     context = {
@@ -607,9 +618,9 @@ def _section_discussions_management(course, access):
 def _is_small_course(course_key):
     """ Compares against MAX_ENROLLMENT_INSTR_BUTTONS to determine if course enrollment is considered small. """
     is_small_course = False
-    enrollment_count = CourseEnrollment.objects.num_enrolled_in(course_key)
     max_enrollment_for_buttons = settings.FEATURES.get("MAX_ENROLLMENT_INSTR_BUTTONS")
     if max_enrollment_for_buttons is not None:
+        enrollment_count = CourseEnrollment.objects.max_enrollments_achieved(course_key, max_enrollment_for_buttons)
         is_small_course = enrollment_count <= max_enrollment_for_buttons
     return is_small_course
 
